@@ -1,0 +1,11 @@
+{
+  "name": "Smapshot",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+        "Smapshot": {
+            "$path": "src"
+        }
+    }
+  }
+}

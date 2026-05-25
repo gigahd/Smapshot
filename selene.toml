@@ -1,0 +1,8 @@
+std = "luau+roblox"
+
+[config]
+manual_table_clone = "warn"
+roblox_manual_fromscale_or_fromoffset = "warn"
+shadowing = "warn"
+unused_variable = "warn"
+mixed_table = "warn"
