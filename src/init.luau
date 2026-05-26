@@ -11,6 +11,7 @@ local SaveInstances = require(script.Instances.SaveInstances)
 local SaveLighting = require(script.Lighting.SaveLighting)
 local SaveMaterial = require(script.Material.SaveMaterial)
 local SaveMusic = require(script.Music.SaveMusic)
+local SmapshotConfig = require(script.SmapshotConfig)
 local SaveTerrain = require(script.Terrain.SaveTerrain)
 local SaveWorkspace = require(script.Workspace.SaveWorkspace)
 
@@ -117,7 +118,6 @@ export type SnapshotConfig = {
 }
 
 local MAX_NAME_COUNT = 1000
-local SMAPSHOT_MARK = "__Smapshot"
 
 local function FindFittingName(snapshot: Folder, parent: Instance): string
     local name = snapshot.Name
@@ -132,6 +132,10 @@ local function FindFittingName(snapshot: Folder, parent: Instance): string
         number += 1
     end
     error(`{originalName} is not available (exceeded max count of {MAX_NAME_COUNT})`)
+end
+
+local function GetIdentifier()
+    return SmapshotConfig.MARK
 end
 
 --[=[
@@ -208,13 +212,21 @@ function Smapshot.Snapshot(config: SnapshotConfig): Folder
         snapshot.Parent = location
     end
 
-    snapshot:SetAttribute(SMAPSHOT_MARK, true)
+    snapshot:SetAttribute(`{GetIdentifier()}_Compatibility`, SmapshotConfig.COMPATIBILITY)
+    snapshot:SetAttribute(`{GetIdentifier()}_Version`, SmapshotConfig.VERSION)
 
     return snapshot
 end
 
 local function LoadFromInstance(snapshot: Instance, consume: boolean?, keepDirty: boolean?)
-    assert(Smapshot.IsSnapshot(snapshot), `Trying to load an invalid save file. ({snapshot.Name})`)
+    if not Smapshot.IsCompatible(snapshot) then
+        local loadedVersion = Smapshot.ReadVersion(snapshot)
+        if not loadedVersion then
+            error(`{snapshot} is not a valid Smapshot`)
+        else
+            error(`Tried loading missmatching Versions Snapshot: {loadedVersion}, Smapshot Module: {SmapshotConfig.VERSION}`)
+        end
+    end
     local terrainSnapshot = snapshot:FindFirstChild("MapTerrain")
     if terrainSnapshot and terrainSnapshot:IsA("TerrainRegion") then
         LoadTerrain(terrainSnapshot, keepDirty, consume)
@@ -241,7 +253,8 @@ local function LoadFromInstance(snapshot: Instance, consume: boolean?, keepDirty
     end
     if consume then
         --Since It's consumed you cannot use it for loading anymore
-        snapshot:SetAttribute(SMAPSHOT_MARK, nil)
+        snapshot:SetAttribute(`{GetIdentifier()}_Compatibility`, nil)
+        snapshot:SetAttribute(`{GetIdentifier()}_Version`, nil)
     end
     return snapshot
 end
@@ -266,15 +279,33 @@ end
     Checks if the input has been made by [Smapshot.Snapshot].
 
     ```lua
-    Smapshot.IsSnapshot(Smapshot.Snapshot({})) -- true
-    Smapshot.IsSnapshot(Instance.new("Folder")) -- false
+    Smapshot.IsCompatible(Smapshot.Snapshot({})) -- true
+    Smapshot.IsCompatible(Instance.new("Folder")) -- false
     ```
 
     @param snapshot -- The snapshot you are trying to validate.
     @return boolean -- The result of the validation.
 ]=]
-function Smapshot.IsSnapshot(snapshot: Instance): boolean
-    return snapshot:GetAttribute(SMAPSHOT_MARK) ~= nil
+function Smapshot.IsCompatible(snapshot: Instance): boolean
+    local Version = snapshot:GetAttribute(`{GetIdentifier()}_Compatibility`)
+    return Version ~= nil and Version == SmapshotConfig.COMPATIBILITY
+end
+
+--[=[
+    Reads the Smapshot version string that was stamped onto a snapshot at creation time.
+    Returns `nil` if the value is missing (e.g. the instance was not produced by [Smapshot.Snapshot],
+    or has since been consumed via [Smapshot.Load] / [Smapshot.LoadAssetAsync] with `consume = true`).
+
+    ```lua
+    Smapshot.ReadVersion(Smapshot.Snapshot({})) -- "0.2.0"
+    Smapshot.ReadVersion(Instance.new("Folder")) -- nil
+    ```
+
+    @param snapshot -- The snapshot to read the version from.
+    @return string? -- The stored version string, or `nil` if there is none.
+]=]
+function Smapshot.ReadVersion(snapshot: Instance): string?
+    return snapshot:GetAttribute(`{GetIdentifier()}_Version`) :: string?
 end
 
 --[=[

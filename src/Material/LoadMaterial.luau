@@ -5,7 +5,7 @@ local CopyPropertiesFromAttributes = require(script.Parent.Parent.Helper.Attribu
 return function(materialSnapshot: Folder, keepDirty: boolean?, consume: boolean?)
     CopyPropertiesFromAttributes(materialSnapshot, MaterialService, keepDirty)
 
-    if keepDirty then
+    if not keepDirty then
         MaterialService:ClearAllChildren()
     end
 
