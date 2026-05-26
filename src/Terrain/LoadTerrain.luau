@@ -1,17 +1,17 @@
 local Workspace = game:GetService("Workspace")
-local CopyPropertiesFromAttributes = require(script.Parent.Parent.Helper.CopyPropertiesFromAttributes)
+local CopyPropertiesFromAttributes = require(script.Parent.Parent.Helper.Attributes.CopyPropertiesFromAttributes)
 
 local Terrain = Workspace.Terrain
 
-local function getRegionCorner(terrain: TerrainRegion)
-    local cornerValue = terrain:FindFirstChild("CornerValue")
+local function getRegionCorner(terrainSnapshot: TerrainRegion)
+    local cornerValue = terrainSnapshot:FindFirstChild("CornerValue")
     if cornerValue and cornerValue:IsA("Vector3Value") then
         return Vector3int16.new(cornerValue.Value.X, cornerValue.Value.Y, cornerValue.Value.Z)
     end
     return Vector3int16.new(
-        -math.floor(terrain.SizeInCells.X / 2),
-        -math.floor(terrain.SizeInCells.Y / 2),
-        -math.floor(terrain.SizeInCells.Z / 2)
+        -math.floor(terrainSnapshot.SizeInCells.X / 2),
+        -math.floor(terrainSnapshot.SizeInCells.Y / 2),
+        -math.floor(terrainSnapshot.SizeInCells.Z / 2)
     )
 end
 
@@ -31,6 +31,6 @@ return function(terrain: TerrainRegion, keepDirty: boolean?)
         if not materialEnum then
             continue
         end
-        Terrain:SetMaterialColor(materialEnum, colorValue)
+        Terrain:SetMaterialColor(materialEnum, colorValue :: Color3)
     end
 end

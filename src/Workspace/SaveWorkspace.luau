@@ -1,13 +1,15 @@
 local Workspace = game:GetService("Workspace")
 
-local CopyPropertiesIntoAttributes = require(script.Parent.Parent.Helper.CopyPropertiesIntoAttributes)
-return function(saveCameraCFrame: boolean?, saveDefaults: boolean?)
-    local WorkspaceHolder = Instance.new("Folder")
-    WorkspaceHolder.Name = "Workspace"
-    CopyPropertiesIntoAttributes(WorkspaceHolder, Workspace, saveDefaults)
+local CloneWithFilter = require(script.Parent.Parent.Helper.Clones.CloneWithFilter)
+local CopyPropertiesIntoAttributes = require(script.Parent.Parent.Helper.Attributes.CopyPropertiesIntoAttributes)
+return function(whitelist: { string }?, blacklist: { string }?, saveCameraCFrame: boolean?, saveDefaults: boolean?)
+    local workspaceSnapshot = Instance.new("Folder")
+    workspaceSnapshot.Name = "Workspace"
+    CopyPropertiesIntoAttributes(workspaceSnapshot, Workspace, saveDefaults)
+    
     local WorkspaceChildren = Instance.new("Folder")
     WorkspaceChildren.Name = "Children"
-    WorkspaceChildren.Parent = WorkspaceHolder
+    WorkspaceChildren.Parent = workspaceSnapshot
 
     for _, child in Workspace:GetChildren() do
         if child:IsA("Terrain") then
@@ -18,11 +20,11 @@ return function(saveCameraCFrame: boolean?, saveDefaults: boolean?)
                 local cameraCFrameValue = Instance.new("CFrameValue")
                 cameraCFrameValue.Name = "CameraCFrame"
                 cameraCFrameValue.Value = Workspace.CurrentCamera.CFrame
-                cameraCFrameValue.Parent = WorkspaceHolder
+                cameraCFrameValue.Parent = workspaceSnapshot
             end
             continue
         end
-        child:Clone().Parent = WorkspaceChildren
+        CloneWithFilter(child, WorkspaceChildren, whitelist, blacklist)
     end
-    return WorkspaceHolder
+    return workspaceSnapshot
 end

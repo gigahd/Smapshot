@@ -4,7 +4,10 @@ return function(Holder: Instance, Target: Instance, keepDirty: boolean?)
     local properties = GetValidAttributeProperties(Target.ClassName)
     for _, property in properties do
         local attributeValue = Holder:GetAttribute(property.Name)
-        
+        --You can't sandboxed on services
+        if property.Name == "Sandboxed" and Target.Parent == game then
+            continue
+        end
         if attributeValue == nil then
             if not keepDirty then
                 pcall(function()

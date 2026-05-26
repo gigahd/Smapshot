@@ -1,4 +1,5 @@
-return function(instance: Instance, name: string, value: any)
+local IsValidAttribute = require(script.Parent.IsValidAttribute)
+return function(instance: Instance, name: string, value: IsValidAttribute.ValidAttributeTypes)
     local success, error = pcall(function()
         instance:SetAttribute(name, value)
     end)

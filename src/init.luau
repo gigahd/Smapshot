@@ -4,12 +4,15 @@ local ConvertPartToRegion3int16 = require(script.Helper.ConvertPartToRegion3int1
 local LoadInstances = require(script.Instances.LoadInstances)
 local LoadLighting = require(script.Lighting.LoadLighting)
 local LoadTerrain = require(script.Terrain.LoadTerrain)
+local LoadWorkspace = require(script.Workspace.LoadWorkspace)
 local SaveInstances = require(script.Instances.SaveInstances)
 local SaveLighting = require(script.Lighting.SaveLighting)
+local LoadMaterial = require(script.Material.LoadMaterial)
+local SaveMaterial = require(script.Material.SaveMaterial)
+local LoadMusic = require(script.Music.LoadMusic)
+local SaveMusic = require(script.Music.SaveMusic)
 local SaveTerrain = require(script.Terrain.SaveTerrain)
-local LoadWorkspace = require(script.Workspace.LoadWorkspace)
 local SaveWorkspace = require(script.Workspace.SaveWorkspace)
-
 
 --[=[
     @class Smapshot
@@ -32,12 +35,12 @@ export type TerrainConfig = {
 --[=[
     @interface LightingConfig
     @within Smapshot
-    .effectsWhiteList { string }? -- ClassNames of `Lighting` effects to include.
-    .effectsBlackList { string }? -- ClassNames of `Lighting` effects to exclude.
+    .effectsWhitelist { string }? -- ClassNames of `Lighting` effects to include.
+    .effectsBlacklist { string }? -- ClassNames of `Lighting` effects to exclude.
 ]=]
 export type LightingConfig = {
-    effectsWhiteList: { string }?,
-    effectsBlackList: { string }?,
+    whitelist: { string }?,
+    blacklist: { string }?,
 }
 
 --[=[
@@ -46,11 +49,25 @@ export type LightingConfig = {
     .ignoreParents boolean? -- When `true`, instances are saved without recording their original parent path.
 ]=]
 export type InstanceConfig = {
+    instances: { Instance },
     ignoreParents: boolean?,
 }
 
 export type WorkspaceConfig = {
-    saveCameraCFrame: boolean?
+    whitelist: { string }?,
+    blacklist: { string }?,
+    saveCameraCFrame: boolean?,
+}
+
+export type MusicConfig = {
+    whitelist: { string }?,
+    blacklist: { string }?,
+}
+
+export type MaterialConfig = {
+    whitelist: { string }?,
+    blacklist: { string }?,
+    materialFilter: { Enum.Material }?,
 }
 
 --[=[
@@ -61,17 +78,17 @@ export type WorkspaceConfig = {
     .saveDefaults boolean? -- When `true`, properties that match Roblox defaults are still serialized.
     .terrain TerrainConfig? -- Terrain to capture. Omit to skip terrain.
     .lighting LightingConfig? -- Lighting settings to capture. Omit to skip lighting.
-    .instances { Instance }? -- Instances to capture. Omit to skip instances.
     .instanceConfig InstanceConfig? -- Additional options for instance saving.
 ]=]
 export type SnapshotConfig = {
     name: string?,
     saveLocation: Instance?,
     saveDefaults: boolean?,
-    terrain: TerrainConfig?,
-    lighting: LightingConfig?,
+    terrainConfig: TerrainConfig?,
+    lightingConfig: LightingConfig?,
     workspaceConfig: WorkspaceConfig?,
-    instances: { Instance }?,
+    musicConfig: MusicConfig?,
+    materialConfig: MaterialConfig?,
     instanceConfig: InstanceConfig?,
 }
 
@@ -105,7 +122,7 @@ end
         saveLocation = game:GetService("ReplicatedStorage"),
         terrain = { slice = workspace.ArenaBounds },
         instances = workspace.Arena:GetChildren(),
-        lighting = { effectsBlackList = { "Sky" } },
+        lighting = { effectsBlacklist = { "Sky" } },
     })
     ```
 
@@ -115,7 +132,7 @@ end
 function Smapshot.Snapshot(config: SnapshotConfig): Folder
     local snapshot = Instance.new("Folder")
 
-    local terrainConfig = config.terrain
+    local terrainConfig = config.terrainConfig
     if terrainConfig then
         local slice = if typeof(terrainConfig.slice) == "Instance" and terrainConfig.slice:IsA("BasePart")
             then ConvertPartToRegion3int16(terrainConfig.slice)
@@ -123,21 +140,34 @@ function Smapshot.Snapshot(config: SnapshotConfig): Folder
         local result = SaveTerrain(slice, config.saveDefaults)
         result.Parent = snapshot
     end
-    local instances = config.instances
-    if instances then
-        local ignoreParents = if config.instanceConfig ~= nil then config.instanceConfig.ignoreParents else nil
-        local result = SaveInstances(instances, ignoreParents)
+    local instanceConfig = config.instanceConfig
+    if instanceConfig then
+        local result = SaveInstances(instanceConfig.instances or {}, instanceConfig.ignoreParents)
         result.Parent = snapshot
     end
-    local lightingConfig = config.lighting
+    local lightingConfig = config.lightingConfig
     if lightingConfig then
-        local result =
-            SaveLighting(lightingConfig.effectsWhiteList, lightingConfig.effectsBlackList, config.saveDefaults)
+        local result = SaveLighting(lightingConfig.whitelist, lightingConfig.blacklist, config.saveDefaults)
         result.Parent = snapshot
     end
     local workspaceConfig = config.workspaceConfig
     if workspaceConfig then
-        local result = SaveWorkspace(workspaceConfig.saveCameraCFrame, config.saveDefaults)
+        local result = SaveWorkspace(
+            workspaceConfig.whitelist,
+            workspaceConfig.blacklist,
+            workspaceConfig.saveCameraCFrame,
+            config.saveDefaults
+        )
+        result.Parent = snapshot
+    end
+    local musicConfig = config.musicConfig
+    if musicConfig then
+        local result = SaveMusic(musicConfig.whitelist, musicConfig.blacklist)
+        result.Parent = snapshot
+    end
+    local materialConfig = config.materialConfig
+    if materialConfig then
+        local result = SaveMaterial(materialConfig.materialFilter, materialConfig.whitelist, materialConfig.blacklist)
         result.Parent = snapshot
     end
     if config.name then
@@ -156,21 +186,29 @@ end
 
 local function LoadFromInstance(snapshot: Instance, keepDirty: boolean?)
     assert(Smapshot.IsSnapshot(snapshot), `Trying to load an invalid save file. ({snapshot.Name})`)
-    local terrain = snapshot:FindFirstChild("MapTerrain")
-    if terrain and terrain:IsA("TerrainRegion") then
-        LoadTerrain(terrain, keepDirty)
+    local terrainSnapshot = snapshot:FindFirstChild("MapTerrain")
+    if terrainSnapshot and terrainSnapshot:IsA("TerrainRegion") then
+        LoadTerrain(terrainSnapshot, keepDirty)
     end
-    local instances = snapshot:FindFirstChild("Instances")
-    if instances and instances:IsA("Folder") then
-        LoadInstances(instances, keepDirty)
+    local instanceSnapshot = snapshot:FindFirstChild("Instances")
+    if instanceSnapshot and instanceSnapshot:IsA("Folder") then
+        LoadInstances(instanceSnapshot, keepDirty)
     end
-    local lighting = snapshot:FindFirstChild("Lighting")
-    if lighting and lighting:IsA("Folder") then
-        LoadLighting(lighting, keepDirty)
+    local lightingSnapshot = snapshot:FindFirstChild("Lighting")
+    if lightingSnapshot and lightingSnapshot:IsA("Folder") then
+        LoadLighting(lightingSnapshot, keepDirty)
     end
-    local workspace = snapshot:FindFirstChild("Workspace")
-    if workspace and workspace:IsA("Folder") then
-        LoadWorkspace(workspace, keepDirty)
+    local workspaceSnapshot = snapshot:FindFirstChild("Workspace")
+    if workspaceSnapshot and workspaceSnapshot:IsA("Folder") then
+        LoadWorkspace(workspaceSnapshot, keepDirty)
+    end
+    local musicSnapshot = snapshot:FindFirstChild("Music")
+    if musicSnapshot and musicSnapshot:IsA("Folder") then
+        LoadMusic(musicSnapshot, keepDirty)
+    end
+    local MaterialSnapshot = snapshot:FindFirstChild("Material")
+    if MaterialSnapshot and MaterialSnapshot:IsA("Folder") then
+        LoadMaterial(MaterialSnapshot, keepDirty)
     end
     return snapshot
 end

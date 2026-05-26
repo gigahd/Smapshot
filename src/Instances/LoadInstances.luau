@@ -1,3 +1,4 @@
+local CloneAndParent = require(script.Parent.Parent.Helper.Clones.CloneAndParent)
 local function TryParent(instance: Instance, fullName: string, keepDirty: boolean?)
     local parent: Instance = game
     local path = fullName:split(".")
@@ -13,14 +14,7 @@ local function TryParent(instance: Instance, fullName: string, keepDirty: boolea
         end
         parent = next
     end
-    local clone = instance:Clone()
-    if not keepDirty then
-        local exists = parent:FindFirstChild(clone.Name)
-        if exists then
-            exists:Destroy()
-        end
-    end
-    clone.Parent = parent
+    local clone = CloneAndParent(instance, parent, not keepDirty)
     clone:SetAttribute("FullName", nil)
 end
 

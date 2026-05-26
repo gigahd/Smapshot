@@ -1,10 +1,10 @@
+local CloneAndParent = require(script.Parent.Parent.Helper.Clones.CloneAndParent)
 return function(instances: { Instance }, ignoreParents: boolean?)
-    local Instances = Instance.new("Folder")
-    Instances.Name = "Instances"
+    local instanceSnapshot = Instance.new("Folder")
+    instanceSnapshot.Name = "Instances"
 
     for _, instance in instances do
-        local clone = instance:Clone()
-        clone.Parent = Instances
+        local clone = CloneAndParent(instance, instanceSnapshot, false)
         if ignoreParents then
             continue
         end
@@ -14,5 +14,5 @@ return function(instances: { Instance }, ignoreParents: boolean?)
             clone:SetAttribute("FullName", fullName)
         end
     end
-    return Instances
+    return instanceSnapshot
 end

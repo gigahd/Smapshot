@@ -1,7 +1,7 @@
 local Workspace = game:GetService("Workspace")
 
-local CopyPropertiesIntoAttributes = require(script.Parent.Parent.Helper.CopyPropertiesIntoAttributes)
-local SetSafeAttribute = require(script.Parent.Parent.Helper.SetSafeAttribute)
+local CopyPropertiesIntoAttributes = require(script.Parent.Parent.Helper.Attributes.CopyPropertiesIntoAttributes)
+local SetSafeAttribute = require(script.Parent.Parent.Helper.Attributes.SetSafeAttribute)
 
 local Terrain = Workspace.Terrain
 
@@ -12,19 +12,19 @@ local function GetMaterialColorSafe(material: Enum.Material): (boolean, Color3)
 end
 
 return function(slice: Region3int16?, saveDefaults: boolean?): TerrainRegion
-    local terrainRegion = Terrain:CopyRegion(if slice then slice else Terrain.MaxExtents)
-    terrainRegion.Name = "MapTerrain"
+    local terrainSnapshot = Terrain:CopyRegion(if slice then slice else Terrain.MaxExtents)
+    terrainSnapshot.Name = "MapTerrain"
     if slice then
         local value = Instance.new("Vector3Value")
         value.Value = Vector3.new(slice.Min.X, slice.Min.Y, slice.Min.Z)
         value.Name = "CornerValue"
-        value.Parent = terrainRegion
+        value.Parent = terrainSnapshot
     end
-    CopyPropertiesIntoAttributes(terrainRegion, Terrain, saveDefaults)
+    CopyPropertiesIntoAttributes(terrainSnapshot, Terrain, saveDefaults)
 
     local materialColors: Folder = Instance.new("Folder")
     materialColors.Name = "MaterialColors"
-    materialColors.Parent = terrainRegion
+    materialColors.Parent = terrainSnapshot
 
     for _, material: Enum.Material in Enum.Material:GetEnumItems() do
         local success: boolean, color: Color3 = GetMaterialColorSafe(material)
@@ -34,5 +34,5 @@ return function(slice: Region3int16?, saveDefaults: boolean?): TerrainRegion
         SetSafeAttribute(materialColors, material.Name, color)
     end
 
-    return terrainRegion
+    return terrainSnapshot
 end
