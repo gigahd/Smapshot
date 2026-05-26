@@ -5,7 +5,7 @@ local CopyPropertiesFromAttributes = require(script.Parent.Parent.Helper.Attribu
 return function(lightingSnapshot: Folder, keepDirty: boolean?, consume: boolean?)
     CopyPropertiesFromAttributes(lightingSnapshot, Lighting, keepDirty)
 
-    if keepDirty then
+    if not keepDirty then
         Lighting:ClearAllChildren()
     end
 
