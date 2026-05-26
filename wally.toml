@@ -1,7 +1,17 @@
 [package]
-name = "giga/smapshot"
+name = "gigahd/smapshot"
+description = "A small library for saving and loading maps"
 version = "0.1.0"
-registry = "https://github.com/UpliftGames/wally-index"
+license = "MIT"
+authors = ["gigahd"]
 realm = "shared"
+registry = "https://github.com/UpliftGames/wally-index"
+repository = "https://github.com/gigahd/Smapshot"
 
-[dependencies]
+include = [
+    "wally.toml",
+    "README.md",
+    "LICENSE",
+    "default.project.json",
+    "src",
+]
