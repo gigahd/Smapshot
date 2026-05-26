@@ -2,12 +2,12 @@ local MaterialService = game:GetService("MaterialService")
 
 local CloneAndParentChildren = require(script.Parent.Parent.Helper.Clones.CloneAndParentChildren)
 local CopyPropertiesFromAttributes = require(script.Parent.Parent.Helper.Attributes.CopyPropertiesFromAttributes)
-return function(materialSnapshot: Folder, keepDirty: boolean?)
+return function(materialSnapshot: Folder, keepDirty: boolean?, consume: boolean?)
     CopyPropertiesFromAttributes(materialSnapshot, MaterialService, keepDirty)
 
     if keepDirty then
         MaterialService:ClearAllChildren()
     end
 
-    CloneAndParentChildren(materialSnapshot, MaterialService, keepDirty == true)
+    CloneAndParentChildren(materialSnapshot, MaterialService, keepDirty == true, consume)
 end

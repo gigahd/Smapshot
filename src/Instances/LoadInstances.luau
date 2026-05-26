@@ -1,5 +1,5 @@
 local CloneAndParent = require(script.Parent.Parent.Helper.Clones.CloneAndParent)
-local function TryParent(instance: Instance, fullName: string, keepDirty: boolean?)
+local function TryParent(instance: Instance, fullName: string, keepDirty: boolean?, consume: boolean?)
     local parent: Instance = game
     local path = fullName:split(".")
     -- Last element is just the instance it self
@@ -14,16 +14,16 @@ local function TryParent(instance: Instance, fullName: string, keepDirty: boolea
         end
         parent = next
     end
-    local clone = CloneAndParent(instance, parent, not keepDirty)
+    local clone = CloneAndParent(instance, parent, not keepDirty, consume)
     clone:SetAttribute("FullName", nil)
 end
 
-return function(folder: Folder, keepDirty: boolean?)
+return function(folder: Folder, keepDirty: boolean?, consume: boolean?)
     for _, instance in folder:GetChildren() do
         local fullName = instance:GetAttribute("FullName")
         if fullName == nil or not (typeof(fullName) == "string") then
             continue
         end
-        TryParent(instance, fullName, keepDirty)
+        TryParent(instance, fullName, keepDirty, consume)
     end
 end

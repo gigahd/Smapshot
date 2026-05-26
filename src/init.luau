@@ -3,13 +3,13 @@ local AssetService = game:GetService("AssetService")
 local ConvertPartToRegion3int16 = require(script.Helper.ConvertPartToRegion3int16)
 local LoadInstances = require(script.Instances.LoadInstances)
 local LoadLighting = require(script.Lighting.LoadLighting)
+local LoadMaterial = require(script.Material.LoadMaterial)
+local LoadMusic = require(script.Music.LoadMusic)
 local LoadTerrain = require(script.Terrain.LoadTerrain)
 local LoadWorkspace = require(script.Workspace.LoadWorkspace)
 local SaveInstances = require(script.Instances.SaveInstances)
 local SaveLighting = require(script.Lighting.SaveLighting)
-local LoadMaterial = require(script.Material.LoadMaterial)
 local SaveMaterial = require(script.Material.SaveMaterial)
-local LoadMusic = require(script.Music.LoadMusic)
 local SaveMusic = require(script.Music.SaveMusic)
 local SaveTerrain = require(script.Terrain.SaveTerrain)
 local SaveWorkspace = require(script.Workspace.SaveWorkspace)
@@ -149,7 +149,7 @@ end
         terrainConfig = { slice = workspace.ArenaBounds },
         lightingConfig = { blacklist = { "Sky" } },
         workspaceConfig = { saveCameraCFrame = true },
-        instanceConfig = { instances = workspace.Arena:GetChildren() },
+        instanceConfig = { instances = { game:GetService("ReplicatedStorage").Arena.Weapons } },
     })
     ```
 
@@ -213,44 +213,53 @@ function Smapshot.Snapshot(config: SnapshotConfig): Folder
     return snapshot
 end
 
-local function LoadFromInstance(snapshot: Instance, keepDirty: boolean?)
+local function LoadFromInstance(snapshot: Instance, consume: boolean?, keepDirty: boolean?)
     assert(Smapshot.IsSnapshot(snapshot), `Trying to load an invalid save file. ({snapshot.Name})`)
     local terrainSnapshot = snapshot:FindFirstChild("MapTerrain")
     if terrainSnapshot and terrainSnapshot:IsA("TerrainRegion") then
-        LoadTerrain(terrainSnapshot, keepDirty)
+        LoadTerrain(terrainSnapshot, keepDirty, consume)
     end
     local instanceSnapshot = snapshot:FindFirstChild("Instances")
     if instanceSnapshot and instanceSnapshot:IsA("Folder") then
-        LoadInstances(instanceSnapshot, keepDirty)
+        LoadInstances(instanceSnapshot, keepDirty, consume)
     end
     local lightingSnapshot = snapshot:FindFirstChild("Lighting")
     if lightingSnapshot and lightingSnapshot:IsA("Folder") then
-        LoadLighting(lightingSnapshot, keepDirty)
+        LoadLighting(lightingSnapshot, keepDirty, consume)
     end
     local workspaceSnapshot = snapshot:FindFirstChild("Workspace")
     if workspaceSnapshot and workspaceSnapshot:IsA("Folder") then
-        LoadWorkspace(workspaceSnapshot, keepDirty)
+        LoadWorkspace(workspaceSnapshot, keepDirty, consume)
     end
     local musicSnapshot = snapshot:FindFirstChild("Music")
     if musicSnapshot and musicSnapshot:IsA("Folder") then
-        LoadMusic(musicSnapshot, keepDirty)
+        LoadMusic(musicSnapshot, keepDirty, consume)
     end
     local MaterialSnapshot = snapshot:FindFirstChild("Material")
     if MaterialSnapshot and MaterialSnapshot:IsA("Folder") then
-        LoadMaterial(MaterialSnapshot, keepDirty)
+        LoadMaterial(MaterialSnapshot, keepDirty, consume)
+    end
+    if consume then
+        --Since It's consumed you cannot use it for loading anymore
+        snapshot:SetAttribute(SMAPSHOT_MARK, nil)
     end
     return snapshot
 end
 
-local function LoadFromAssetId(snapshotId: number, keepDirty: boolean?)
+local function LoadFromAssetId(snapshotId: number, consume: boolean?, keepDirty: boolean?)
     local cached = idCache[snapshotId]
     if cached then
-        return LoadFromInstance(cached, keepDirty)
+        if consume then
+            idCache[snapshotId] = nil
+        end
+        return LoadFromInstance(cached, consume, keepDirty)
     end
     local asset = AssetService:LoadAssetAsync(snapshotId)
     local snapshot = asset:GetChildren()[1]
-    idCache[snapshotId] = snapshot
-    return LoadFromInstance(snapshot, keepDirty)
+    if not consume then
+        idCache[snapshotId] = snapshot
+    end
+    return LoadFromInstance(snapshot, consume, keepDirty)
 end
 
 --[=[
@@ -278,11 +287,12 @@ end
     ```
 
     @param snapshot -- The Snapshot to load.
+    @param consume -- When `true`, the snapshot's children are reparented directly into the target services instead of being cloned. Skips the clone cost but leaves the snapshot invalid for further loads.
     @param keepDirty -- When `true`, existing state is preserved instead of being cleared before the snapshot is applied. Forwarded to every subsystem the snapshot contains.
     @return Folder -- The loaded snapshot.
 ]=]
-function Smapshot.Load(snapshot: Folder, keepDirty: boolean?): Folder
-    return LoadFromInstance(snapshot, keepDirty) :: Folder
+function Smapshot.Load(snapshot: Folder, consume: boolean?, keepDirty: boolean?): Folder
+    return LoadFromInstance(snapshot, consume, keepDirty) :: Folder
 end
 
 --[=[
@@ -297,11 +307,12 @@ end
 
     @yields
     @param assetId -- Asset id of an uploaded snapshot.
+    @param consume -- When `true`, the snapshot's children are reparented directly into the target services instead of being cloned. Skips the clone cost but leaves the snapshot invalid for further loads.
     @param keepDirty -- When `true`, existing state is preserved instead of being cleared before the snapshot is applied. Forwarded to every subsystem the snapshot contains.
     @return Folder -- The loaded snapshot.
 ]=]
-function Smapshot.LoadAssetAsync(assetId: number, keepDirty: boolean?): Folder
-    return LoadFromAssetId(assetId, keepDirty) :: Folder
+function Smapshot.LoadAssetAsync(assetId: number, consume: boolean?, keepDirty: boolean?): Folder
+    return LoadFromAssetId(assetId, consume, keepDirty) :: Folder
 end
 
 return Smapshot

@@ -15,7 +15,7 @@ local function getRegionCorner(terrainSnapshot: TerrainRegion)
     )
 end
 
-return function(terrain: TerrainRegion, keepDirty: boolean?)
+return function(terrain: TerrainRegion, keepDirty: boolean?, consume: boolean?)
     local position = getRegionCorner(terrain)
     if not keepDirty then
         Terrain:Clear()
@@ -23,14 +23,16 @@ return function(terrain: TerrainRegion, keepDirty: boolean?)
     Terrain:PasteRegion(terrain, position, true)
     CopyPropertiesFromAttributes(terrain, Terrain, keepDirty)
     local MaterialColors = terrain:FindFirstChild("MaterialColors")
-    if not MaterialColors then
-        return
-    end
-    for materialName: string, colorValue: Color3 in MaterialColors:GetAttributes() do
-        local materialEnum = Enum.Material:FromName(materialName)
-        if not materialEnum then
-            continue
+    if MaterialColors then
+        for materialName: string, colorValue: Color3 in MaterialColors:GetAttributes() do
+            local materialEnum = Enum.Material:FromName(materialName)
+            if not materialEnum then
+                continue
+            end
+            Terrain:SetMaterialColor(materialEnum, colorValue :: Color3)
         end
-        Terrain:SetMaterialColor(materialEnum, colorValue :: Color3)
+    end
+    if consume then
+        terrain:Destroy()
     end
 end
