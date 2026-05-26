@@ -21,7 +21,7 @@ local idCache: { [number]: Instance } = {}
 --[=[
     @interface TerrainConfig
     @within Smapshot
-    .slice (BasePart | Region3int16)? -- Region of terrain to save. If a `BasePart` is provided it is converted to a `Region3int16`. When `nil`, no terrain is saved.
+    .slice (BasePart | Region3int16)? -- Region of terrain to save. If a `BasePart` is provided it is converted to a `Region3int16`. When `nil`, all terrain is saved.
 ]=]
 export type TerrainConfig = {
     slice: (BasePart | Region3int16)?,
@@ -30,7 +30,7 @@ export type TerrainConfig = {
 --[=[
     @interface LightingConfig
     @within Smapshot
-    .effectsWhiteList { string }? -- ClassNames of `Lighting` effects to include. Mutually exclusive with `effectsBlackList`.
+    .effectsWhiteList { string }? -- ClassNames of `Lighting` effects to include.
     .effectsBlackList { string }? -- ClassNames of `Lighting` effects to exclude.
 ]=]
 export type LightingConfig = {
@@ -95,14 +95,15 @@ end
     ```lua
     local snapshot = Smapshot.Snapshot({
         name = "Arena",
-        terrain = { slice = workspace.MapBounds },
-        instances = workspace.Map:GetChildren(),
+        saveLocation = game:GetService("ReplicatedStorage"),
+        terrain = { slice = workspace.ArenaBounds },
+        instances = workspace.Arena:GetChildren(),
         lighting = { effectsBlackList = { "Sky" } },
     })
     ```
 
     @param config -- Describes what to capture and where to store the result.
-    @return Folder -- A snapshot folder containing the serialized map data.
+    @return Folder -- A snapshot containing the serialized map data.
 ]=]
 function Smapshot.Snapshot(config: SnapshotConfig): Folder
     local snapshot = Instance.new("Folder")
@@ -173,8 +174,8 @@ end
     Checks if the input has been made by [Smapshot.Snapshot].
 
     ```lua
-    Smapshot.IsSnapshot(Smapshot.Snapshot({})) -- True
-    Smapshot.IsSnapshot(Instance.new("Folder")) -- False
+    Smapshot.IsSnapshot(Smapshot.Snapshot({})) -- true
+    Smapshot.IsSnapshot(Instance.new("Folder")) -- false
     ```
 
     @param snapshot -- The snapshot you are trying to validate.
@@ -193,9 +194,9 @@ end
     Smapshot.Load(snapshot)
     ```
 
-    @param snapshot -- A snapshot `Folder`.
+    @param snapshot -- The Snapshot to load.
     @param keepDirty -- When `true`, existing terrain and lighting state is preserved instead of being cleared first.
-    @return Folder -- The loaded snapshot instance.
+    @return Folder -- The loaded snapshot.
 ]=]
 function Smapshot.Load(snapshot: Folder, keepDirty: boolean?): Folder
     return LoadFromInstance(snapshot, keepDirty) :: Folder
@@ -214,7 +215,7 @@ end
     @yields
     @param assetId -- Asset id of an uploaded snapshot.
     @param keepDirty -- When `true`, existing terrain and lighting state is preserved instead of being cleared first.
-    @return Folder -- The loaded snapshot instance.
+    @return Folder -- The loaded snapshot.
 ]=]
 function Smapshot.LoadAssetAsync(assetId: number, keepDirty: boolean?): Folder
     return LoadFromAssetId(assetId, keepDirty) :: Folder
