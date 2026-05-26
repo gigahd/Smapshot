@@ -1,5 +1,5 @@
 return function(instance: Instance, name: string, value: any)
-    const success, error = pcall(function()
+    local success, error = pcall(function()
         instance:SetAttribute(name, value)
     end)
     if not success then

@@ -8,10 +8,12 @@ realm = "shared"
 registry = "https://github.com/UpliftGames/wally-index"
 repository = "https://github.com/gigahd/Smapshot"
 
+exclude = ["*"]
 include = [
     "wally.toml",
     "README.md",
     "LICENSE",
     "default.project.json",
     "src",
+    "src/**"
 ]

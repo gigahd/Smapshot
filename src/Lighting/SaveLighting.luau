@@ -1,9 +1,9 @@
-const Lighting = game:GetService("Lighting")
+local Lighting = game:GetService("Lighting")
 
-const CopyPropertiesIntoAttributes = require(script.Parent.Parent.Helper.CopyPropertiesIntoAttributes)
+local CopyPropertiesIntoAttributes = require(script.Parent.Parent.Helper.CopyPropertiesIntoAttributes)
 
 return function(whitelist: { string }?, blacklist: { string }?, saveDefaults: boolean?)
-    const LightingPropertiesHolder = Instance.new("Folder")
+    local LightingPropertiesHolder = Instance.new("Folder")
     LightingPropertiesHolder.Name = "Lighting"
     CopyPropertiesIntoAttributes(LightingPropertiesHolder, Lighting, saveDefaults)
     for _, child in Lighting:GetChildren() do

@@ -1,10 +1,10 @@
-const function TryParent(instance: Instance, fullName: string)
+local function TryParent(instance: Instance, fullName: string)
     local parent: Instance = game
-    const path = fullName:split(".")
+    local path = fullName:split(".")
     -- Last element is just the instance it self
     table.remove(path, #path)
     for i, name in path do
-        const next = parent:FindFirstChild(name)
+        local next = parent:FindFirstChild(name)
         if next == nil then
             warn(
                 `Couldn't place {instance.Name} in it's supposed location {fullName}, closest approach {parent:GetFullName()}`
@@ -19,7 +19,7 @@ end
 
 return function(folder: Folder)
     for _, instance in folder:GetChildren() do
-        const fullName = instance:GetAttribute("FullName")
+        local fullName = instance:GetAttribute("FullName")
         if fullName == nil or not (typeof(fullName) == "string") then
             continue
         end

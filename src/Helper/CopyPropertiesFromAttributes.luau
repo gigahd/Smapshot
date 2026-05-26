@@ -1,9 +1,9 @@
-const GetValidAttributeProperties = require(script.Parent.GetValidAttributeProperties)
+local GetValidAttributeProperties = require(script.Parent.GetValidAttributeProperties)
 
 return function(Holder: Instance, Target: Instance, keepDirty: boolean?)
-    const properties = GetValidAttributeProperties(Target.ClassName)
+    local properties = GetValidAttributeProperties(Target.ClassName)
     for _, property in properties do
-        const attributeValue = Holder:GetAttribute(property.Name)
+        local attributeValue = Holder:GetAttribute(property.Name)
         if not keepDirty and attributeValue == nil then
             Target:ResetPropertyToDefault(property.Name)
             continue
@@ -16,7 +16,7 @@ return function(Holder: Instance, Target: Instance, keepDirty: boolean?)
             )
             continue
         end
-        const success, error = pcall(function()
+        local success, error = pcall(function()
             (Target :: any)[property.Name] = attributeValue
         end)
         if not success then

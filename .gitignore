@@ -14,6 +14,8 @@ sourcemap.json
 /DevPackages
 wally.lock
 
+pesde.lock
+
 # OS / editor
 .DS_Store
 Thumbs.db

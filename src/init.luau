@@ -1,31 +1,64 @@
-const AssetService = game:GetService("AssetService")
-const ServerStorage = game:GetService("ServerStorage")
+local AssetService = game:GetService("AssetService")
 
-const ConvertPartToRegion3int16 = require(script.Helper.ConvertPartToRegion3int16)
-const LoadInstances = require(script.Instances.LoadInstances)
-const SaveInstances = require(script.Instances.SaveInstances)
-const LoadLighting = require(script.Lighting.LoadLighting)
-const SaveLighting = require(script.Lighting.SaveLighting)
-const LoadTerrain = require(script.Terrain.LoadTerrain)
-const SaveTerrain = require(script.Terrain.SaveTerrain)
-const Map = {}
+local ConvertPartToRegion3int16 = require(script.Helper.ConvertPartToRegion3int16)
+local LoadInstances = require(script.Instances.LoadInstances)
+local LoadLighting = require(script.Lighting.LoadLighting)
+local LoadTerrain = require(script.Terrain.LoadTerrain)
+local SaveInstances = require(script.Instances.SaveInstances)
+local SaveLighting = require(script.Lighting.SaveLighting)
+local SaveTerrain = require(script.Terrain.SaveTerrain)
 
-const idCache: { [number]: Instance } = {}
 
+--[=[
+    @class Smapshot
+
+    Smapshot allows for dynamic saving and loading of maps.
+]=]
+local Smapshot = {}
+
+local idCache: { [number]: Instance } = {}
+
+--[=[
+    @interface TerrainConfig
+    @within Smapshot
+    .slice (BasePart | Region3int16)? -- Region of terrain to save. If a `BasePart` is provided it is converted to a `Region3int16`. When `nil`, no terrain is saved.
+]=]
 export type TerrainConfig = {
     slice: (BasePart | Region3int16)?,
 }
 
+--[=[
+    @interface LightingConfig
+    @within Smapshot
+    .effectsWhiteList { string }? -- ClassNames of `Lighting` effects to include. Mutually exclusive with `effectsBlackList`.
+    .effectsBlackList { string }? -- ClassNames of `Lighting` effects to exclude.
+]=]
 export type LightingConfig = {
     effectsWhiteList: { string }?,
     effectsBlackList: { string }?,
 }
 
+--[=[
+    @interface InstanceConfig
+    @within Smapshot
+    .ignoreParents boolean? -- When `true`, instances are saved without recording their original parent path.
+]=]
 export type InstanceConfig = {
     ignoreParents: boolean?,
 }
 
-export type SaveConfig = {
+--[=[
+    @interface SnapshotConfig
+    @within Smapshot
+    .name string? -- Name applied to the returned snapshot `Folder`.
+    .saveLocation Instance? -- If provided, the snapshot is parented here with a unique name.
+    .saveDefaults boolean? -- When `true`, properties that match Roblox defaults are still serialized.
+    .terrain TerrainConfig? -- Terrain to capture. Omit to skip terrain.
+    .instances { Instance }? -- Instances to capture. Omit to skip instances.
+    .instanceConfig InstanceConfig? -- Additional options for instance saving.
+    .lighting LightingConfig? -- Lighting settings to capture. Omit to skip lighting.
+]=]
+export type SnapshotConfig = {
     name: string?,
     saveLocation: Instance?,
     saveDefaults: boolean?,
@@ -35,7 +68,8 @@ export type SaveConfig = {
     lighting: LightingConfig?,
 }
 
-const MAX_NAME_COUNT = 1000
+local MAX_NAME_COUNT = 1000
+local SMAPSHOT_MARK = "__Smapshot"
 
 local function FindFittingName(export: Folder, parent: Instance): string
     local name = export.Name
@@ -52,26 +86,44 @@ local function FindFittingName(export: Folder, parent: Instance): string
     error(`{originalName} is not available (exceeded max count of {MAX_NAME_COUNT})`)
 end
 
-function Map.Save(config: SaveConfig): Folder
-    const export = Instance.new("Folder")
+--[=[
+    Creates a snapshot of terrain, instances, and/or lighting based on the supplied [SnapshotConfig].
 
-    const terrainConfig = config.terrain
+    The returned `Folder` can later be passed to [Smapshot.Load] to restore the captured state.
+    If `config.saveLocation` is set, the folder is parented there with a unique name.
+
+    ```lua
+    local snapshot = Smapshot.Snapshot({
+        name = "Arena",
+        terrain = { slice = workspace.MapBounds },
+        instances = workspace.Map:GetChildren(),
+        lighting = { effectsBlackList = { "Sky" } },
+    })
+    ```
+
+    @param config -- Describes what to capture and where to store the result.
+    @return Folder -- A snapshot folder containing the serialized map data.
+]=]
+function Smapshot.Snapshot(config: SnapshotConfig): Folder
+    local export = Instance.new("Folder")
+
+    local terrainConfig = config.terrain
     if terrainConfig then
-        const slice = if typeof(terrainConfig.slice) == "Instance" and terrainConfig.slice:IsA("BasePart")
+        local slice = if typeof(terrainConfig.slice) == "Instance" and terrainConfig.slice:IsA("BasePart")
             then ConvertPartToRegion3int16(terrainConfig.slice)
             else terrainConfig.slice
-        const result = SaveTerrain(slice, config.saveDefaults)
+        local result = SaveTerrain(slice, config.saveDefaults)
         result.Parent = export
     end
-    const instances = config.instances
+    local instances = config.instances
     if instances then
-        const ignoreParents = config.instanceConfig ~= nil and config.instanceConfig.ignoreParents
-        const result = SaveInstances(instances, ignoreParents)
+        local ignoreParents = config.instanceConfig ~= nil and config.instanceConfig.ignoreParents
+        local result = SaveInstances(instances, ignoreParents)
         result.Parent = export
     end
-    const lightingConfig = config.lighting
+    local lightingConfig = config.lighting
     if lightingConfig then
-        const result =
+        local result =
             SaveLighting(lightingConfig.effectsWhiteList, lightingConfig.effectsBlackList, config.saveDefaults)
         result.Parent = export
     end
@@ -83,10 +135,14 @@ function Map.Save(config: SaveConfig): Folder
         FindFittingName(export, location)
         export.Parent = location
     end
+
+    export:SetAttribute(SMAPSHOT_MARK, true)
+
     return export
 end
 
 local function LoadFromInstance(toLoad: Instance, keepDirty: boolean?)
+    assert(Smapshot.IsSnapshot(toLoad), `Trying to load an invalid save file. ({toLoad.Name})`)
     local terrain = toLoad:FindFirstChild("MapTerrain")
     if terrain and terrain:IsA("TerrainRegion") then
         LoadTerrain(terrain, keepDirty)
@@ -113,15 +169,55 @@ local function LoadFromAssetId(toLoad: number, keepDirty: boolean?)
     return LoadFromInstance(model, keepDirty)
 end
 
-function Map.LoadAsync(toLoad: Folder | number, keepDirty: boolean?): Folder
-    local type = typeof(toLoad)
-    if type == "number" then
-        return LoadFromAssetId(toLoad :: number, keepDirty) :: Folder
-    elseif type == "Instance" then
-        return LoadFromInstance(toLoad :: Instance, keepDirty) :: Folder
-    else
-        error(`Cannot load from {type}`)
-    end
+--[=[
+    Checks if the input has been made by [Smapshot.Snapshot].
+
+    ```lua
+    Smapshot.IsSnapshot(Smapshot.Snapshot({})) -- True
+    Smapshot.IsSnapshot(Instance.new("Folder")) -- False
+    ```
+
+    @param file -- The file you are trying to validate.
+    @return boolean -- The result of the validation.
+]=]
+function Smapshot.IsSnapshot(file: Instance): boolean
+    return file:GetAttribute(SMAPSHOT_MARK) ~= nil
 end
 
-return Map
+--[=[
+    Loads a snapshot folder previously produced by [Smapshot.Snapshot].
+
+    Use [Smapshot.LoadAssetAsync] when loading from a Roblox asset id instead.
+
+    ```lua
+    Smapshot.Load(snapshot)
+    ```
+
+    @param file -- A snapshot `Folder`.
+    @param keepDirty -- When `true`, existing terrain and lighting state is preserved instead of being cleared first.
+    @return Folder -- The loaded snapshot instance.
+]=]
+function Smapshot.Load(file: Folder, keepDirty: boolean?): Folder
+    return LoadFromInstance(file, keepDirty) :: Folder
+end
+
+--[=[
+    Loads a snapshot from a Roblox asset id.
+
+    The asset is fetched via `AssetService:LoadAssetAsync` and cached for subsequent loads.
+    Use [Smapshot.Load] when loading from an in-memory snapshot `Folder` instead.
+
+    ```lua
+    Smapshot.LoadAssetAsync(1234567890)
+    ```
+
+    @yields
+    @param assetId -- Asset id of an uploaded snapshot.
+    @param keepDirty -- When `true`, existing terrain and lighting state is preserved instead of being cleared first.
+    @return Folder -- The loaded snapshot instance.
+]=]
+function Smapshot.LoadAssetAsync(assetId: number, keepDirty: boolean?): Folder
+    return LoadFromAssetId(assetId, keepDirty) :: Folder
+end
+
+return Smapshot

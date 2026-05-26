@@ -1,10 +1,10 @@
-const Workspace = game:GetService("Workspace")
-const CopyPropertiesFromAttributes = require(script.Parent.Parent.Helper.CopyPropertiesFromAttributes)
+local Workspace = game:GetService("Workspace")
+local CopyPropertiesFromAttributes = require(script.Parent.Parent.Helper.CopyPropertiesFromAttributes)
 
-const Terrain = Workspace.Terrain
+local Terrain = Workspace.Terrain
 
 local function getRegionCorner(terrain: TerrainRegion)
-    const cornerValue = terrain:FindFirstChild("CornerValue")
+    local cornerValue = terrain:FindFirstChild("CornerValue")
     if cornerValue and cornerValue:IsA("Vector3Value") then
         return Vector3int16.new(cornerValue.Value.X, cornerValue.Value.Y, cornerValue.Value.Z)
     end
@@ -16,18 +16,18 @@ local function getRegionCorner(terrain: TerrainRegion)
 end
 
 return function(terrain: TerrainRegion, keepDirty: boolean?)
-    const position = getRegionCorner(terrain)
+    local position = getRegionCorner(terrain)
     if not keepDirty then
         Terrain:Clear()
     end
     Terrain:PasteRegion(terrain, position, true)
     CopyPropertiesFromAttributes(terrain, Terrain, keepDirty)
-    const MaterialColors = terrain:FindFirstChild("MaterialColors")
+    local MaterialColors = terrain:FindFirstChild("MaterialColors")
     if not MaterialColors then
         return
     end
     for materialName: string, colorValue: Color3 in MaterialColors:GetAttributes() do
-        const materialEnum = Enum.Material:FromName(materialName)
+        local materialEnum = Enum.Material:FromName(materialName)
         if not materialEnum then
             continue
         end

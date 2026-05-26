@@ -4,7 +4,7 @@ description = "A small library for saving and loading maps"
 authors = ["gigahd"]
 license = "MIT"
 repository = "https://github.com/gigahd/Smapshot"
-includes = ["src/*", "README.md", "pesde.toml"]
+includes = ["src/**", "README.md", "pesde.toml"]
 
 [target]
 environment = "roblox"
