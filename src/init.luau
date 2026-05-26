@@ -7,6 +7,8 @@ local LoadTerrain = require(script.Terrain.LoadTerrain)
 local SaveInstances = require(script.Instances.SaveInstances)
 local SaveLighting = require(script.Lighting.SaveLighting)
 local SaveTerrain = require(script.Terrain.SaveTerrain)
+local LoadWorkspace = require(script.Workspace.LoadWorkspace)
+local SaveWorkspace = require(script.Workspace.SaveWorkspace)
 
 
 --[=[
@@ -47,6 +49,10 @@ export type InstanceConfig = {
     ignoreParents: boolean?,
 }
 
+export type WorkspaceConfig = {
+    saveCameraCFrame: boolean?
+}
+
 --[=[
     @interface SnapshotConfig
     @within Smapshot
@@ -54,18 +60,19 @@ export type InstanceConfig = {
     .saveLocation Instance? -- If provided, the snapshot is parented here with a unique name.
     .saveDefaults boolean? -- When `true`, properties that match Roblox defaults are still serialized.
     .terrain TerrainConfig? -- Terrain to capture. Omit to skip terrain.
+    .lighting LightingConfig? -- Lighting settings to capture. Omit to skip lighting.
     .instances { Instance }? -- Instances to capture. Omit to skip instances.
     .instanceConfig InstanceConfig? -- Additional options for instance saving.
-    .lighting LightingConfig? -- Lighting settings to capture. Omit to skip lighting.
 ]=]
 export type SnapshotConfig = {
     name: string?,
     saveLocation: Instance?,
     saveDefaults: boolean?,
     terrain: TerrainConfig?,
+    lighting: LightingConfig?,
+    workspaceConfig: WorkspaceConfig?,
     instances: { Instance }?,
     instanceConfig: InstanceConfig?,
-    lighting: LightingConfig?,
 }
 
 local MAX_NAME_COUNT = 1000
@@ -118,7 +125,7 @@ function Smapshot.Snapshot(config: SnapshotConfig): Folder
     end
     local instances = config.instances
     if instances then
-        local ignoreParents = config.instanceConfig ~= nil and config.instanceConfig.ignoreParents
+        local ignoreParents = if config.instanceConfig ~= nil then config.instanceConfig.ignoreParents else nil
         local result = SaveInstances(instances, ignoreParents)
         result.Parent = snapshot
     end
@@ -128,12 +135,17 @@ function Smapshot.Snapshot(config: SnapshotConfig): Folder
             SaveLighting(lightingConfig.effectsWhiteList, lightingConfig.effectsBlackList, config.saveDefaults)
         result.Parent = snapshot
     end
+    local workspaceConfig = config.workspaceConfig
+    if workspaceConfig then
+        local result = SaveWorkspace(workspaceConfig.saveCameraCFrame, config.saveDefaults)
+        result.Parent = snapshot
+    end
     if config.name then
         snapshot.Name = config.name
     end
     local location = config.saveLocation
     if location then
-        FindFittingName(snapshot, location)
+        snapshot.Name = FindFittingName(snapshot, location)
         snapshot.Parent = location
     end
 
@@ -150,11 +162,15 @@ local function LoadFromInstance(snapshot: Instance, keepDirty: boolean?)
     end
     local instances = snapshot:FindFirstChild("Instances")
     if instances and instances:IsA("Folder") then
-        LoadInstances(instances)
+        LoadInstances(instances, keepDirty)
     end
     local lighting = snapshot:FindFirstChild("Lighting")
     if lighting and lighting:IsA("Folder") then
         LoadLighting(lighting, keepDirty)
+    end
+    local workspace = snapshot:FindFirstChild("Workspace")
+    if workspace and workspace:IsA("Folder") then
+        LoadWorkspace(workspace, keepDirty)
     end
     return snapshot
 end

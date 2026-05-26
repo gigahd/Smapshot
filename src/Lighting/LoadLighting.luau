@@ -10,7 +10,7 @@ return function(lightingInfoHolder: Folder, keepDirty: boolean?)
             if exists then
                 exists:Destroy()
             end
-            child.Parent = Lighting
+            child:Clone().Parent = Lighting
         end
 
         return
@@ -19,6 +19,6 @@ return function(lightingInfoHolder: Folder, keepDirty: boolean?)
     end
 
     for _, child in lightingInfoHolder:GetChildren() do
-        child.Parent = Lighting
+        child:Clone().Parent = Lighting
     end
 end

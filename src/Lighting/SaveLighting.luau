@@ -6,6 +6,8 @@ return function(whitelist: { string }?, blacklist: { string }?, saveDefaults: bo
     local LightingPropertiesHolder = Instance.new("Folder")
     LightingPropertiesHolder.Name = "Lighting"
     CopyPropertiesIntoAttributes(LightingPropertiesHolder, Lighting, saveDefaults)
+    --Just quick fail save because Sandboxed cannot be set even though permissions allow it? Idk man
+    LightingPropertiesHolder:SetAttribute("Sandboxed", nil)
     for _, child in Lighting:GetChildren() do
         if
             (whitelist and not table.find(whitelist, child.Name)) or (blacklist and table.find(blacklist, child.Name))

@@ -12,7 +12,6 @@ local function GetMaterialColorSafe(material: Enum.Material): (boolean, Color3)
 end
 
 return function(slice: Region3int16?, saveDefaults: boolean?): TerrainRegion
-    print(slice)
     local terrainRegion = Terrain:CopyRegion(if slice then slice else Terrain.MaxExtents)
     terrainRegion.Name = "MapTerrain"
     if slice then

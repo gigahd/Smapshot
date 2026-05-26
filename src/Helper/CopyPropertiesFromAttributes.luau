@@ -4,11 +4,16 @@ return function(Holder: Instance, Target: Instance, keepDirty: boolean?)
     local properties = GetValidAttributeProperties(Target.ClassName)
     for _, property in properties do
         local attributeValue = Holder:GetAttribute(property.Name)
-        if not keepDirty and attributeValue == nil then
-            Target:ResetPropertyToDefault(property.Name)
+        
+        if attributeValue == nil then
+            if not keepDirty then
+                pcall(function()
+                    Target:ResetPropertyToDefault(property.Name)
+                end)
+            end
             continue
         end
-        if property.Type.ScriptType ~= typeof(attributeValue) then
+        if attributeValue and property.Type.ScriptType ~= typeof(attributeValue) then
             warn(
                 `Property {property.Name} has a miss matching type, expected: {property.Type.ScriptType}, but got {typeof(
                     attributeValue
