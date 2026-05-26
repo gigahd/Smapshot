@@ -1,5 +1,5 @@
 name = "gigahd/smapshot"
-version = "0.1.0"
+version = "0.1.1"
 description = "A small library for saving and loading maps"
 authors = ["gigahd"]
 license = "MIT"
