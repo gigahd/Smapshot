@@ -71,8 +71,8 @@ export type SnapshotConfig = {
 local MAX_NAME_COUNT = 1000
 local SMAPSHOT_MARK = "__Smapshot"
 
-local function FindFittingName(export: Folder, parent: Instance): string
-    local name = export.Name
+local function FindFittingName(snapshot: Folder, parent: Instance): string
+    local name = snapshot.Name
     local originalName = name
     local number = 1
     while number <= MAX_NAME_COUNT do
@@ -105,7 +105,7 @@ end
     @return Folder -- A snapshot folder containing the serialized map data.
 ]=]
 function Smapshot.Snapshot(config: SnapshotConfig): Folder
-    local export = Instance.new("Folder")
+    local snapshot = Instance.new("Folder")
 
     local terrainConfig = config.terrain
     if terrainConfig then
@@ -113,60 +113,60 @@ function Smapshot.Snapshot(config: SnapshotConfig): Folder
             then ConvertPartToRegion3int16(terrainConfig.slice)
             else terrainConfig.slice
         local result = SaveTerrain(slice, config.saveDefaults)
-        result.Parent = export
+        result.Parent = snapshot
     end
     local instances = config.instances
     if instances then
         local ignoreParents = config.instanceConfig ~= nil and config.instanceConfig.ignoreParents
         local result = SaveInstances(instances, ignoreParents)
-        result.Parent = export
+        result.Parent = snapshot
     end
     local lightingConfig = config.lighting
     if lightingConfig then
         local result =
             SaveLighting(lightingConfig.effectsWhiteList, lightingConfig.effectsBlackList, config.saveDefaults)
-        result.Parent = export
+        result.Parent = snapshot
     end
     if config.name then
-        export.Name = config.name
+        snapshot.Name = config.name
     end
     local location = config.saveLocation
     if location then
-        FindFittingName(export, location)
-        export.Parent = location
+        FindFittingName(snapshot, location)
+        snapshot.Parent = location
     end
 
-    export:SetAttribute(SMAPSHOT_MARK, true)
+    snapshot:SetAttribute(SMAPSHOT_MARK, true)
 
-    return export
+    return snapshot
 end
 
-local function LoadFromInstance(toLoad: Instance, keepDirty: boolean?)
-    assert(Smapshot.IsSnapshot(toLoad), `Trying to load an invalid save file. ({toLoad.Name})`)
-    local terrain = toLoad:FindFirstChild("MapTerrain")
+local function LoadFromInstance(snapshot: Instance, keepDirty: boolean?)
+    assert(Smapshot.IsSnapshot(snapshot), `Trying to load an invalid save file. ({snapshot.Name})`)
+    local terrain = snapshot:FindFirstChild("MapTerrain")
     if terrain and terrain:IsA("TerrainRegion") then
         LoadTerrain(terrain, keepDirty)
     end
-    local instances = toLoad:FindFirstChild("Instances")
+    local instances = snapshot:FindFirstChild("Instances")
     if instances and instances:IsA("Folder") then
         LoadInstances(instances)
     end
-    local lighting = toLoad:FindFirstChild("Lighting")
+    local lighting = snapshot:FindFirstChild("Lighting")
     if lighting and lighting:IsA("Folder") then
         LoadLighting(lighting, keepDirty)
     end
-    return toLoad
+    return snapshot
 end
 
-local function LoadFromAssetId(toLoad: number, keepDirty: boolean?)
-    local cached = idCache[toLoad]
+local function LoadFromAssetId(snapshotId: number, keepDirty: boolean?)
+    local cached = idCache[snapshotId]
     if cached then
         return LoadFromInstance(cached, keepDirty)
     end
-    local asset = AssetService:LoadAssetAsync(toLoad)
-    local model = asset:GetChildren()[1]
-    idCache[toLoad] = model
-    return LoadFromInstance(model, keepDirty)
+    local asset = AssetService:LoadAssetAsync(snapshotId)
+    local snapshot = asset:GetChildren()[1]
+    idCache[snapshotId] = snapshot
+    return LoadFromInstance(snapshot, keepDirty)
 end
 
 --[=[
@@ -177,11 +177,11 @@ end
     Smapshot.IsSnapshot(Instance.new("Folder")) -- False
     ```
 
-    @param file -- The file you are trying to validate.
+    @param snapshot -- The snapshot you are trying to validate.
     @return boolean -- The result of the validation.
 ]=]
-function Smapshot.IsSnapshot(file: Instance): boolean
-    return file:GetAttribute(SMAPSHOT_MARK) ~= nil
+function Smapshot.IsSnapshot(snapshot: Instance): boolean
+    return snapshot:GetAttribute(SMAPSHOT_MARK) ~= nil
 end
 
 --[=[
@@ -193,12 +193,12 @@ end
     Smapshot.Load(snapshot)
     ```
 
-    @param file -- A snapshot `Folder`.
+    @param snapshot -- A snapshot `Folder`.
     @param keepDirty -- When `true`, existing terrain and lighting state is preserved instead of being cleared first.
     @return Folder -- The loaded snapshot instance.
 ]=]
-function Smapshot.Load(file: Folder, keepDirty: boolean?): Folder
-    return LoadFromInstance(file, keepDirty) :: Folder
+function Smapshot.Load(snapshot: Folder, keepDirty: boolean?): Folder
+    return LoadFromInstance(snapshot, keepDirty) :: Folder
 end
 
 --[=[
