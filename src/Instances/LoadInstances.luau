@@ -13,8 +13,9 @@ local function TryParent(instance: Instance, fullName: string)
         end
         parent = next
     end
-    instance:Clone().Parent = parent
-    instance:SetAttribute("FullName", nil)
+    local clone = instance:Clone()
+    clone.Parent = parent
+    clone:SetAttribute("FullName", nil)
 end
 
 return function(folder: Folder)
