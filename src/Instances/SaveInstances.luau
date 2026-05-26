@@ -1,11 +1,11 @@
 local CloneAndParent = require(script.Parent.Parent.Helper.Clones.CloneAndParent)
-return function(instances: { Instance }, ignoreParents: boolean?)
+return function(instances: { Instance }, saveParents: boolean?)
     local instanceSnapshot = Instance.new("Folder")
     instanceSnapshot.Name = "Instances"
 
     for _, instance in instances do
         local clone = CloneAndParent(instance, instanceSnapshot, false)
-        if ignoreParents then
+        if not saveParents then
             continue
         end
         local fullName = instance:GetFullName()

@@ -35,8 +35,8 @@ export type TerrainConfig = {
 --[=[
     @interface LightingConfig
     @within Smapshot
-    .effectsWhitelist { string }? -- ClassNames of `Lighting` effects to include.
-    .effectsBlacklist { string }? -- ClassNames of `Lighting` effects to exclude.
+    .whitelist { string }? -- Names of `Lighting` children (effects, atmospheres, skies) to include. Mutually exclusive with `blacklist`.
+    .blacklist { string }? -- Names of `Lighting` children to exclude.
 ]=]
 export type LightingConfig = {
     whitelist: { string }?,
@@ -46,24 +46,45 @@ export type LightingConfig = {
 --[=[
     @interface InstanceConfig
     @within Smapshot
-    .ignoreParents boolean? -- When `true`, instances are saved without recording their original parent path.
+    .instances { Instance } -- Instances to capture.
+    .saveParents boolean? -- When `true`, each instance's original parent path is recorded so it can be restored on load. Defaults to `false`.
 ]=]
 export type InstanceConfig = {
     instances: { Instance },
-    ignoreParents: boolean?,
+    saveParents: boolean?,
 }
 
+--[=[
+    @interface WorkspaceConfig
+    @within Smapshot
+    .whitelist { string }? -- Names of `Workspace` children to include. `Terrain` and `CurrentCamera` are always skipped here. Mutually exclusive with `blacklist`.
+    .blacklist { string }? -- Names of `Workspace` children to exclude.
+    .saveCameraCFrame boolean? -- When `true`, the current `Camera.CFrame` is captured and restored on load.
+]=]
 export type WorkspaceConfig = {
     whitelist: { string }?,
     blacklist: { string }?,
     saveCameraCFrame: boolean?,
 }
 
+--[=[
+    @interface MusicConfig
+    @within Smapshot
+    .whitelist { string }? -- Names of `SoundService` children to include. Mutually exclusive with `blacklist`.
+    .blacklist { string }? -- Names of `SoundService` children to exclude.
+]=]
 export type MusicConfig = {
     whitelist: { string }?,
     blacklist: { string }?,
 }
 
+--[=[
+    @interface MaterialConfig
+    @within Smapshot
+    .whitelist { string }? -- Names of `MaterialService` children to include. Mutually exclusive with `blacklist`.
+    .blacklist { string }? -- Names of `MaterialService` children to exclude.
+    .materialFilter { Enum.Material }? -- If provided, only `MaterialVariant`s whose `BaseMaterial` is in this list are captured.
+]=]
 export type MaterialConfig = {
     whitelist: { string }?,
     blacklist: { string }?,
@@ -76,9 +97,12 @@ export type MaterialConfig = {
     .name string? -- Name applied to the returned snapshot `Folder`.
     .saveLocation Instance? -- If provided, the snapshot is parented here with a unique name.
     .saveDefaults boolean? -- When `true`, properties that match Roblox defaults are still serialized.
-    .terrain TerrainConfig? -- Terrain to capture. Omit to skip terrain.
-    .lighting LightingConfig? -- Lighting settings to capture. Omit to skip lighting.
-    .instanceConfig InstanceConfig? -- Additional options for instance saving.
+    .terrainConfig TerrainConfig? -- Terrain to capture. Omit to skip terrain.
+    .lightingConfig LightingConfig? -- `Lighting` properties and children to capture. Omit to skip lighting.
+    .workspaceConfig WorkspaceConfig? -- `Workspace` properties and children to capture. Omit to skip workspace.
+    .musicConfig MusicConfig? -- `SoundService` properties and children to capture. Omit to skip music.
+    .materialConfig MaterialConfig? -- `MaterialService` properties and material variants to capture. Omit to skip materials.
+    .instanceConfig InstanceConfig? -- Arbitrary instances to capture. Omit to skip instance saving.
 ]=]
 export type SnapshotConfig = {
     name: string?,
@@ -111,7 +135,9 @@ local function FindFittingName(snapshot: Folder, parent: Instance): string
 end
 
 --[=[
-    Creates a snapshot of terrain, instances, and/or lighting based on the supplied [SnapshotConfig].
+    Creates a snapshot of any combination of terrain, lighting, workspace, music, materials,
+    and arbitrary instances based on the supplied [SnapshotConfig]. Any config field that is
+    omitted is skipped.
 
     The returned `Folder` can later be passed to [Smapshot.Load] to restore the captured state.
     If `config.saveLocation` is set, the folder is parented there with a unique name.
@@ -120,9 +146,10 @@ end
     local snapshot = Smapshot.Snapshot({
         name = "Arena",
         saveLocation = game:GetService("ReplicatedStorage"),
-        terrain = { slice = workspace.ArenaBounds },
-        instances = workspace.Arena:GetChildren(),
-        lighting = { effectsBlacklist = { "Sky" } },
+        terrainConfig = { slice = workspace.ArenaBounds },
+        lightingConfig = { blacklist = { "Sky" } },
+        workspaceConfig = { saveCameraCFrame = true },
+        instanceConfig = { instances = workspace.Arena:GetChildren() },
     })
     ```
 
@@ -142,7 +169,7 @@ function Smapshot.Snapshot(config: SnapshotConfig): Folder
     end
     local instanceConfig = config.instanceConfig
     if instanceConfig then
-        local result = SaveInstances(instanceConfig.instances or {}, instanceConfig.ignoreParents)
+        local result = SaveInstances(instanceConfig.instances or {}, instanceConfig.saveParents)
         result.Parent = snapshot
     end
     local lightingConfig = config.lightingConfig
@@ -172,6 +199,8 @@ function Smapshot.Snapshot(config: SnapshotConfig): Folder
     end
     if config.name then
         snapshot.Name = config.name
+    else
+        snapshot.Name = "Snapshot"
     end
     local location = config.saveLocation
     if location then
@@ -249,7 +278,7 @@ end
     ```
 
     @param snapshot -- The Snapshot to load.
-    @param keepDirty -- When `true`, existing terrain and lighting state is preserved instead of being cleared first.
+    @param keepDirty -- When `true`, existing state is preserved instead of being cleared before the snapshot is applied. Forwarded to every subsystem the snapshot contains.
     @return Folder -- The loaded snapshot.
 ]=]
 function Smapshot.Load(snapshot: Folder, keepDirty: boolean?): Folder
@@ -268,7 +297,7 @@ end
 
     @yields
     @param assetId -- Asset id of an uploaded snapshot.
-    @param keepDirty -- When `true`, existing terrain and lighting state is preserved instead of being cleared first.
+    @param keepDirty -- When `true`, existing state is preserved instead of being cleared before the snapshot is applied. Forwarded to every subsystem the snapshot contains.
     @return Folder -- The loaded snapshot.
 ]=]
 function Smapshot.LoadAssetAsync(assetId: number, keepDirty: boolean?): Folder
