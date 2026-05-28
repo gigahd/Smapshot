@@ -218,7 +218,7 @@ function Smapshot.Snapshot(config: SnapshotConfig): Folder
     return snapshot
 end
 
-local function LoadFromInstance(snapshot: Instance, consume: boolean?, keepDirty: boolean?)
+local function NotCompatibleError(snapshot: Instance)
     if not Smapshot.IsCompatible(snapshot) then
         local loadedVersion = Smapshot.ReadVersion(snapshot)
         if not loadedVersion then
@@ -227,6 +227,10 @@ local function LoadFromInstance(snapshot: Instance, consume: boolean?, keepDirty
             error(`Tried loading missmatching Versions Snapshot: {loadedVersion}, Smapshot Module: {SmapshotConfig.VERSION}`)
         end
     end
+end
+
+local function LoadFromInstance(snapshot: Instance, consume: boolean?, keepDirty: boolean?)
+    NotCompatibleError(snapshot)
     local terrainSnapshot = snapshot:FindFirstChild("MapTerrain")
     if terrainSnapshot and terrainSnapshot:IsA("TerrainRegion") then
         LoadTerrain(terrainSnapshot, keepDirty, consume)
@@ -259,18 +263,22 @@ local function LoadFromInstance(snapshot: Instance, consume: boolean?, keepDirty
     return snapshot
 end
 
-local function LoadFromAssetId(snapshotId: number, consume: boolean?, keepDirty: boolean?)
+local function GetFromAssetId(snapshotId: number)
     local cached = idCache[snapshotId]
     if cached then
-        if consume then
-            idCache[snapshotId] = nil
-        end
-        return LoadFromInstance(cached, consume, keepDirty)
+        return cached
     end
     local asset = AssetService:LoadAssetAsync(snapshotId)
-    local snapshot = asset:GetChildren()[1]
-    if not consume then
-        idCache[snapshotId] = snapshot
+    local snapshot =  asset:GetChildren()[1]
+    NotCompatibleError(snapshot)
+    idCache[snapshotId] = snapshot
+    return snapshot
+end
+
+local function LoadFromAssetId(snapshotId: number, consume: boolean?, keepDirty: boolean?)
+    local snapshot = GetFromAssetId(snapshotId)
+    if consume then
+        idCache[snapshotId] = nil
     end
     return LoadFromInstance(snapshot, consume, keepDirty)
 end
@@ -306,6 +314,24 @@ end
 ]=]
 function Smapshot.ReadVersion(snapshot: Instance): string?
     return snapshot:GetAttribute(`{GetIdentifier()}_Version`) :: string?
+end
+
+--[=[
+    Gets a snapshot from a Roblox asset id.
+
+    The asset is fetched via `AssetService:LoadAssetAsync` and cached.
+    Use [Smapshot.Load] to load the map snapshot.
+
+    ```lua
+    Smapshot.GetAssetAsync(1234567890)
+    ```
+
+    @yields
+    @param assetId -- Asset id of an uploaded snapshot.
+    @return Folder -- The loaded snapshot.
+]=]
+function Smapshot.GetAssetAsync(snapshotId: number)
+    return GetFromAssetId(snapshotId)
 end
 
 --[=[
