@@ -327,7 +327,7 @@ end
     ```
 
     @yields
-    @param assetId -- Asset id of an uploaded snapshot.
+    @param snapshotId -- Asset id of an uploaded snapshot.
     @return Folder -- The loaded snapshot.
 ]=]
 function Smapshot.GetAssetAsync(snapshotId: number)
@@ -363,13 +363,13 @@ end
     ```
 
     @yields
-    @param assetId -- Asset id of an uploaded snapshot.
+    @param snapshotId -- Asset id of an uploaded snapshot.
     @param consume -- When `true`, the snapshot's children are reparented directly into the target services instead of being cloned. Skips the clone cost but leaves the snapshot invalid for further loads.
     @param keepDirty -- When `true`, existing state is preserved instead of being cleared before the snapshot is applied. Forwarded to every subsystem the snapshot contains.
     @return Folder -- The loaded snapshot.
 ]=]
-function Smapshot.LoadAssetAsync(assetId: number, consume: boolean?, keepDirty: boolean?): Folder
-    return LoadFromAssetId(assetId, consume, keepDirty) :: Folder
+function Smapshot.LoadAssetAsync(snapshotId: number, consume: boolean?, keepDirty: boolean?): Folder
+    return LoadFromAssetId(snapshotId, consume, keepDirty) :: Folder
 end
 
 return Smapshot
