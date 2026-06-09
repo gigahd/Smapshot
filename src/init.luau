@@ -344,27 +344,6 @@ local function LoadFromInstance(snapshot: Instance, config: LoadConfig)
 
     return snapshot
 end
-
-local function GetFromAssetId(snapshotId: number)
-    local cached = idCache[snapshotId]
-    if cached then
-        return cached
-    end
-    local asset = AssetService:LoadAssetAsync(snapshotId)
-    local snapshot =  asset:GetChildren()[1]
-    NotCompatibleError(snapshot)
-    idCache[snapshotId] = snapshot
-    return snapshot
-end
-
-local function LoadFromAssetId(snapshotId: number, config: LoadConfig)
-    local snapshot = GetFromAssetId(snapshotId)
-    if config.globalConsume then
-        idCache[snapshotId] = nil
-    end
-    return LoadFromInstance(snapshot, config)
-end
-
 --[=[
     Checks if the input has been made by [Smapshot.Snapshot].
 
@@ -398,24 +377,6 @@ function Smapshot.ReadVersion(snapshot: Instance): string?
 end
 
 --[=[
-    Gets a snapshot from a Roblox asset id.
-
-    The asset is fetched via `AssetService:LoadAssetAsync` and cached.
-    Use [Smapshot.Load] to load the map snapshot.
-
-    ```lua
-    Smapshot.GetAssetAsync(1234567890)
-    ```
-
-    @yields
-    @param snapshotId -- Asset id of an uploaded snapshot.
-    @return Folder -- The loaded snapshot.
-]=]
-function Smapshot.GetAssetAsync(snapshotId: number)
-    return GetFromAssetId(snapshotId)
-end
-
---[=[
     Loads a snapshot folder previously produced by [Smapshot.Snapshot].
 
     Use [Smapshot.LoadAssetAsync] when loading from a Roblox asset id instead.
@@ -436,25 +397,6 @@ end
 ]=]
 function Smapshot.Load(snapshot: Folder, config: LoadConfig?): Folder
     return LoadFromInstance(snapshot, config or {}) :: Folder
-end
-
---[=[
-    Loads a snapshot from a Roblox asset id.
-
-    The asset is fetched via `AssetService:LoadAssetAsync` and cached for subsequent loads.
-    Use [Smapshot.Load] when loading from an in-memory snapshot `Folder` instead.
-
-    ```lua
-    Smapshot.LoadAssetAsync(1234567890)
-    ```
-
-    @yields
-    @param snapshotId -- Asset id of an uploaded snapshot.
-    @param config -- Optional [LoadConfig] describing how each section is applied: clear vs keep (`keepDirty`), clone vs consume (`consume`), or skip (`ignoreOnLoad`). Per-section values fall back to `globalKeepDirty` / `globalConsume`. Omit to clear and clone every section.
-    @return Folder -- The loaded snapshot.
-]=]
-function Smapshot.LoadAssetAsync(snapshotId: number, config: LoadConfig?): Folder
-    return LoadFromAssetId(snapshotId, config or {}) :: Folder
 end
 
 return Smapshot
