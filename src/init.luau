@@ -117,6 +117,57 @@ export type SnapshotConfig = {
     instanceConfig: InstanceConfig?,
 }
 
+
+--[=[
+    @interface SimpleLoadOverwrite
+    @within Smapshot
+    .keepDirty boolean? -- When `true`, existing state is preserved instead of being cleared before this section is applied. Overrides `globalKeepDirty` for this section.
+    .consume boolean? -- When `true`, the section's children are reparented into the target service instead of cloned, and the section is tagged so it is skipped on subsequent loads. Overrides `globalConsume` for this section.
+    .ignoreOnLoad boolean? -- When `true`, this section is skipped entirely on load.
+]=]
+export type SimpleLoadOverwrite = {
+    keepDirty: boolean?,
+    consume: boolean?,
+    ignoreOnLoad: boolean?,
+}
+
+--[=[
+    @interface LoadOverwrite
+    @within Smapshot
+    .keepDirty boolean? -- When `true`, existing state is preserved instead of being cleared before this section is applied. Overrides `globalKeepDirty` for this section.
+    .consume boolean? -- When `true`, the section's children are reparented into the target service instead of cloned, and the section is tagged so it is skipped on subsequent loads. Overrides `globalConsume` for this section.
+    .ignoreOnLoad boolean? -- When `true`, this section is skipped entirely on load.
+    .ignoreOnClear { Instance }? -- Instances to leave in place when the target service is cleared (only applies when `keepDirty` is not set, since that is the only path that clears).
+]=]
+export type LoadOverwrite = SimpleLoadOverwrite & {
+    ignoreOnClear: { Instance }?,
+}
+
+--[=[
+    @interface LoadConfig
+    @within Smapshot
+    .globalConsume boolean? -- Default `consume` applied to every section that does not set its own. See [SimpleLoadOverwrite].
+    .globalKeepDirty boolean? -- Default `keepDirty` applied to every section that does not set its own.
+    .globalIgnoreOnClear { Instance }? -- Default `ignoreOnClear` applied to every clearing section (`Lighting`/`Workspace`/`SoundService`/`MaterialService`) that does not set its own. See [LoadOverwrite].
+    .terrain SimpleLoadOverwrite? -- Overrides for the terrain section.
+    .light LoadOverwrite? -- Overrides for the `Lighting` section.
+    .workspace LoadOverwrite? -- Overrides for the `Workspace` section.
+    .music LoadOverwrite? -- Overrides for the `SoundService` (music) section.
+    .material LoadOverwrite? -- Overrides for the `MaterialService` section.
+    .instance SimpleLoadOverwrite? -- Overrides for the saved-instances section.
+]=]
+export type LoadConfig = {
+    globalConsume: boolean?,
+    globalKeepDirty: boolean?,
+    globalIgnoreOnClear: { Instance }?,
+    terrain: SimpleLoadOverwrite?,
+    light: LoadOverwrite?,
+    workspace: LoadOverwrite?,
+    music: LoadOverwrite?,
+    material: LoadOverwrite?,
+    instance: SimpleLoadOverwrite?,
+}
+
 local MAX_NAME_COUNT = 1000
 
 local function FindFittingName(snapshot: Folder, parent: Instance): string
@@ -229,37 +280,68 @@ local function NotCompatibleError(snapshot: Instance)
     end
 end
 
-local function LoadFromInstance(snapshot: Instance, consume: boolean?, keepDirty: boolean?)
-    NotCompatibleError(snapshot)
-    local terrainSnapshot = snapshot:FindFirstChild("MapTerrain")
-    if terrainSnapshot and terrainSnapshot:IsA("TerrainRegion") then
-        LoadTerrain(terrainSnapshot, keepDirty, consume)
+-- Resolves the effective `keepDirty`/`consume`/`ignoreOnClear` for a section, falling back
+-- to the global config values when the section has no overwrite. Returns `shouldLoad = false`
+-- when the section is explicitly skipped via `ignoreOnLoad`.
+local function ResolveLoadSettings(
+    config: LoadConfig,
+    overwrite: SimpleLoadOverwrite?
+): (boolean, boolean?, boolean?, { Instance }?)
+    if not overwrite then
+        return true, config.globalKeepDirty, config.globalConsume, config.globalIgnoreOnClear
     end
-    local instanceSnapshot = snapshot:FindFirstChild("Instances")
-    if instanceSnapshot and instanceSnapshot:IsA("Folder") then
-        LoadInstances(instanceSnapshot, keepDirty, consume)
+    if overwrite.ignoreOnLoad then
+        return false, nil, nil, nil
     end
-    local lightingSnapshot = snapshot:FindFirstChild("Lighting")
-    if lightingSnapshot and lightingSnapshot:IsA("Folder") then
-        LoadLighting(lightingSnapshot, keepDirty, consume)
+    local keepDirty = if overwrite.keepDirty ~= nil then overwrite.keepDirty else config.globalKeepDirty
+    local consume = if overwrite.consume ~= nil then overwrite.consume else config.globalConsume
+    -- `ignoreOnClear` only exists on `LoadOverwrite` sections; fall back to the global list otherwise.
+    local sectionIgnoreOnClear = (overwrite :: LoadOverwrite).ignoreOnClear
+    local ignoreOnClear = if sectionIgnoreOnClear ~= nil then sectionIgnoreOnClear else config.globalIgnoreOnClear
+    return true, keepDirty, consume, ignoreOnClear
+end
+
+-- Finds a section's snapshot child, resolves its load settings and applies it via `load`.
+-- Returns `true` when the section was consumed so the caller can invalidate the snapshot.
+local function LoadSection<T>(
+    snapshot: Instance,
+    childName: string,
+    className: string,
+    config: LoadConfig,
+    overwrite: SimpleLoadOverwrite?,
+    load: (Instance &  T, boolean?, boolean?, { Instance }?) -> ()
+): boolean
+    local sectionSnapshot = snapshot:FindFirstChild(childName)
+    if not (sectionSnapshot and sectionSnapshot:IsA(className)) then
+        return false
     end
-    local workspaceSnapshot = snapshot:FindFirstChild("Workspace")
-    if workspaceSnapshot and workspaceSnapshot:IsA("Folder") then
-        LoadWorkspace(workspaceSnapshot, keepDirty, consume)
+    local shouldLoad, keepDirty, consume, ignoreOnClear = ResolveLoadSettings(config, overwrite)
+    if not shouldLoad then
+        return false
     end
-    local musicSnapshot = snapshot:FindFirstChild("Music")
-    if musicSnapshot and musicSnapshot:IsA("Folder") then
-        LoadMusic(musicSnapshot, keepDirty, consume)
+    if sectionSnapshot:GetAttribute("__consumed") == true then
+        warn(`Subsection {childName} is already consumed`)
+        return false
     end
-    local MaterialSnapshot = snapshot:FindFirstChild("Material")
-    if MaterialSnapshot and MaterialSnapshot:IsA("Folder") then
-        LoadMaterial(MaterialSnapshot, keepDirty, consume)
-    end
+    load(sectionSnapshot, keepDirty, consume, ignoreOnClear)
     if consume then
-        --Since It's consumed you cannot use it for loading anymore
-        snapshot:SetAttribute(`{GetIdentifier()}_Compatibility`, nil)
-        snapshot:SetAttribute(`{GetIdentifier()}_Version`, nil)
+        sectionSnapshot:SetAttribute("__consumed", true)
     end
+    return consume == true
+end
+
+local function LoadFromInstance(snapshot: Instance, config: LoadConfig)
+    NotCompatibleError(snapshot)
+
+    -- Each section guards itself via its `__consumed` attribute, so the snapshot folder
+    -- as a whole stays a valid Smapshot even after some sections have been consumed.
+    LoadSection(snapshot, "MapTerrain", "TerrainRegion", config, config.terrain, LoadTerrain)
+    LoadSection(snapshot, "Instances", "Folder", config, config.instance, LoadInstances)
+    LoadSection(snapshot, "Lighting", "Folder", config, config.light, LoadLighting)
+    LoadSection(snapshot, "Workspace", "Folder", config, config.workspace, LoadWorkspace)
+    LoadSection(snapshot, "Music", "Folder", config, config.music, LoadMusic)
+    LoadSection(snapshot, "Material", "Folder", config, config.material, LoadMaterial)
+
     return snapshot
 end
 
@@ -275,12 +357,12 @@ local function GetFromAssetId(snapshotId: number)
     return snapshot
 end
 
-local function LoadFromAssetId(snapshotId: number, consume: boolean?, keepDirty: boolean?)
+local function LoadFromAssetId(snapshotId: number, config: LoadConfig)
     local snapshot = GetFromAssetId(snapshotId)
-    if consume then
+    if config.globalConsume then
         idCache[snapshotId] = nil
     end
-    return LoadFromInstance(snapshot, consume, keepDirty)
+    return LoadFromInstance(snapshot, config)
 end
 
 --[=[
@@ -301,8 +383,7 @@ end
 
 --[=[
     Reads the Smapshot version string that was stamped onto a snapshot at creation time.
-    Returns `nil` if the value is missing (e.g. the instance was not produced by [Smapshot.Snapshot],
-    or has since been consumed via [Smapshot.Load] / [Smapshot.LoadAssetAsync] with `consume = true`).
+    Returns `nil` if the value is missing (e.g. the instance was not produced by [Smapshot.Snapshot]).
 
     ```lua
     Smapshot.ReadVersion(Smapshot.Snapshot({})) -- "0.2.0"
@@ -341,15 +422,20 @@ end
 
     ```lua
     Smapshot.Load(snapshot)
+
+    -- Reset the workspace but consume everything else (cheaper, one-shot):
+    Smapshot.Load(snapshot, {
+        globalConsume = true,
+        workspace = { consume = false },
+    })
     ```
 
     @param snapshot -- The Snapshot to load.
-    @param consume -- When `true`, the snapshot's children are reparented directly into the target services instead of being cloned. Skips the clone cost but leaves the snapshot invalid for further loads.
-    @param keepDirty -- When `true`, existing state is preserved instead of being cleared before the snapshot is applied. Forwarded to every subsystem the snapshot contains.
+    @param config -- Optional [LoadConfig] describing how each section is applied: clear vs keep (`keepDirty`), clone vs consume (`consume`), or skip (`ignoreOnLoad`). Per-section values fall back to `globalKeepDirty` / `globalConsume`. Omit to clear and clone every section.
     @return Folder -- The loaded snapshot.
 ]=]
-function Smapshot.Load(snapshot: Folder, consume: boolean?, keepDirty: boolean?): Folder
-    return LoadFromInstance(snapshot, consume, keepDirty) :: Folder
+function Smapshot.Load(snapshot: Folder, config: LoadConfig?): Folder
+    return LoadFromInstance(snapshot, config or {}) :: Folder
 end
 
 --[=[
@@ -364,12 +450,11 @@ end
 
     @yields
     @param snapshotId -- Asset id of an uploaded snapshot.
-    @param consume -- When `true`, the snapshot's children are reparented directly into the target services instead of being cloned. Skips the clone cost but leaves the snapshot invalid for further loads.
-    @param keepDirty -- When `true`, existing state is preserved instead of being cleared before the snapshot is applied. Forwarded to every subsystem the snapshot contains.
+    @param config -- Optional [LoadConfig] describing how each section is applied: clear vs keep (`keepDirty`), clone vs consume (`consume`), or skip (`ignoreOnLoad`). Per-section values fall back to `globalKeepDirty` / `globalConsume`. Omit to clear and clone every section.
     @return Folder -- The loaded snapshot.
 ]=]
-function Smapshot.LoadAssetAsync(snapshotId: number, consume: boolean?, keepDirty: boolean?): Folder
-    return LoadFromAssetId(snapshotId, consume, keepDirty) :: Folder
+function Smapshot.LoadAssetAsync(snapshotId: number, config: LoadConfig?): Folder
+    return LoadFromAssetId(snapshotId, config or {}) :: Folder
 end
 
 return Smapshot

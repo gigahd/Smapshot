@@ -32,7 +32,4 @@ return function(terrain: TerrainRegion, keepDirty: boolean?, consume: boolean?)
             Terrain:SetMaterialColor(materialEnum, colorValue :: Color3)
         end
     end
-    if consume then
-        terrain:Destroy()
-    end
 end

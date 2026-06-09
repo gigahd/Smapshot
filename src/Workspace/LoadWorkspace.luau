@@ -1,18 +1,20 @@
 local Workspace = game:GetService("Workspace")
 
+local ClearChildren = require(script.Parent.Parent.Helper.ClearChildren)
 local CopyPropertiesFromAttributes = require(script.Parent.Parent.Helper.Attributes.CopyPropertiesFromAttributes)
 local CloneAndParentChildren = require(script.Parent.Parent.Helper.Clones.CloneAndParentChildren)
-return function(workspaceSnapshot: Folder, keepDirty: boolean?, consume: boolean?)
+return function(workspaceSnapshot: Folder, keepDirty: boolean?, consume: boolean?, ignoreOnClear: { Instance }?)
 
     if not keepDirty then
-        --Clear children manually since CLearAllChildren will always error due to terrain
-        for _, child in Workspace:GetChildren() do
-            --Skip those two
-            if child:IsA("Terrain") or child == Workspace.CurrentCamera then
-                continue
-            end
-            child:Destroy()
+        -- Terrain and the camera must always survive the clear (ClearAllChildren errors on Terrain).
+        local keep = { Workspace.Terrain :: Instance }
+        if Workspace.CurrentCamera then
+            table.insert(keep, Workspace.CurrentCamera)
         end
+        if ignoreOnClear then
+            table.move(ignoreOnClear, 1, #ignoreOnClear, #keep + 1, keep)
+        end
+        ClearChildren(Workspace, keep)
     end
 
     CopyPropertiesFromAttributes(workspaceSnapshot, Workspace, keepDirty)
