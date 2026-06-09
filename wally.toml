@@ -7,7 +7,6 @@ authors = ["gigahd"]
 realm = "shared"
 registry = "https://github.com/UpliftGames/wally-index"
 repository = "https://github.com/gigahd/Smapshot"
-private = true
 
 exclude = ["*"]
 include = [
